@@ -1,6 +1,7 @@
 (ns game
-  (:require [goog.dom :as dom]
+  (:require [goog.dom :as gdom]
             [goog.events :as events]
+            [clojure.browser.dom :as dom]
             [goog.events.KeyHandler.EventType :as event-type]
             [goog.events.KeyCodes :as key-codes]
             [goog.ui.Dialog :as Dialog]
@@ -28,18 +29,16 @@
     coll))
 
 (defn render-nums []
-  (let [new-ul (dom/createDom "ul" (js* "{id: 'nums'}"))
+  (let [new-ul (dom/element :ul {:id "nums"})
         lhs (pad (vec (take 3 @left)) 3 "")
         rhs (pad (vec (take 3 @right)) 3 "")
-        li-items (map #(dom/createDom "li"
-                                      nil
-                                      (dom/createTextNode (str %)))
+        li-items (map #(dom/element :li (str %))
                       (concat (reverse lhs)
                               ["?"]
                               rhs))]
     (doseq [li li-items]
-      (dom/appendChild new-ul li))
-    (dom/replaceNode new-ul (dom/getElement "nums"))))
+      (dom/append new-ul li))
+    (gdom/replaceNode new-ul (dom/get-element "nums"))))
 
 (defn move-right []
   (let [n (first @right)]
@@ -58,8 +57,8 @@
 (defn render-expr []
   (let [a (rand-int @num)
         b (- @num a)]
-    (dom/setTextContent (dom/getElement "expr")
-                        (str a " + " b))))
+    (gdom/setTextContent (dom/get-element "expr")
+                         (str a " + " b))))
 
 (defn drop-num []
   (let [a (first @left)
@@ -93,7 +92,7 @@
 (register-keys)
 
 (defn render-score []
-  (let [ctx (.getContext (dom/getElement "score") "2d")
+  (let [ctx (.getContext (dom/get-element "score") "2d")
         linear-gradient (.createLinearGradient ctx 0 0 766 15)]
     (doto linear-gradient
       (.addColorStop 0 "#F00")
