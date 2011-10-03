@@ -10,28 +10,26 @@
             [goog.ui.Dialog.EventType :as dialog-event-type]))
 
 ;; State
-(def left  (atom ())) ;; nums left of ?
-(def right (atom ())) ;; nums right of ?
-(def num   (atom (rand-int 100)))
-(def score (atom 0.5))
-(def drop-count (atom 0))
+(def nums       (atom nil))
+(def num        (atom nil))
+(def score      (atom nil))
+(def drop-count (atom nil))
 
 (defn reset-game-state []
-  (reset! left ())
-  (reset! right ())
-  (reset! num (rand-int 100))
-  (reset! score 0.5)
+  (reset! nums       {:left () :right ()})
+  (reset! num        (rand-int 100))
+  (reset! score      0.5)
   (reset! drop-count 0))
 
-(defn pad [coll n fill]
+(defn pad [n fill coll]
   (if (< (count coll) n)
-    (recur (conj coll fill) n fill)
+    (recur n fill (conj coll fill))
     coll))
 
-(defn render-nums []
+(defn render-nums [& _]
   (let [new-ul (dom/element :ul {:id "nums"})
-        lhs (pad (vec (take 3 @left)) 3 "")
-        rhs (pad (vec (take 3 @right)) 3 "")
+        lhs (->> @nums :left vec (pad 3 "") (take 3))
+        rhs (->> @nums :right vec (pad 3 "") (take 3))
         li-items (map #(dom/element :li (str %))
                       (concat (reverse lhs)
                               ["?"]
@@ -40,38 +38,36 @@
       (dom/append new-ul li))
     (gdom/replaceNode new-ul (dom/get-element "nums"))))
 
+
+
 (defn move-right []
-  (let [n (first @right)]
-    (when n
-      (swap! right pop)
-      (swap! left conj n)
-      (render-nums))))  
+  (when-let [n (-> @nums :right first)]
+    (swap! nums #(-> %
+                     (update-in [:right] pop)
+                     (update-in [:left] conj n)))))
 
 (defn move-left []
-  (let [n (first @left)]
-    (when n
-      (swap! left pop)
-      (swap! right conj n)
-      (render-nums))))
+  (when-let [n (-> @nums :left first)]
+    (swap! nums #(-> %
+                     (update-in [:left] pop)
+                     (update-in [:right] conj n)))))
 
-(defn render-expr []
+(defn render-expr [& _]
   (let [a (rand-int @num)
         b (- @num a)]
     (gdom/setTextContent (dom/get-element "expr")
                          (str a " + " b))))
 
 (defn drop-num []
-  (let [a (first @left)
-        b (first @right)]
+  (let [a (-> @nums :left first)
+        b (-> @nums :right first)]
     (if (and (or (nil? a)
                  (<= a @num))
              (or (nil? b)
                  (<= @num b)))      
       (do ;; Ok
-        (swap! left conj @num)
+        (swap! nums update-in [:left] conj @num)
         (reset! num (rand-int 100))
-        (render-nums)
-        (render-expr)
         (swap! score + 0.1)
         (when (> @score 1)
           (reset! score 1))
@@ -89,9 +85,7 @@
                      key-codes/SPACE (drop-num)
                      nil))))
 
-(register-keys)
-
-(defn render-score []
+(defn render-score [& _]
   (let [ctx (.getContext (dom/get-element "score") "2d")
         linear-gradient (.createLinearGradient ctx 0 0 766 15)]
     (doto linear-gradient
@@ -105,9 +99,6 @@
 
 (defn start-game []
   (reset-game-state)
-  (render-nums)
-  (render-expr)
-  (render-score)
   (let [interval-id (atom -1)]
     (reset! interval-id
             (js/setInterval
@@ -118,8 +109,7 @@
                     (js/clearInterval @interval-id)
                     (.setVisible (game-over-dialog @score) true))
                   (do 
-                    (swap! score - 0.0005)
-                    (render-score))))
+                    (swap! score - 0.0005))))
              20))))
 
 (defn welcome-dialog []
@@ -149,4 +139,8 @@
       (events/listen dialog-event-type/SELECT #(start-game)))))
 
 (defn ^:export start []
+  (add-watch nums :nums-change render-nums)
+  (add-watch score :score-change render-score)
+  (add-watch num :num-change render-expr)
+  (register-keys)
   (.setVisible (welcome-dialog) true))
